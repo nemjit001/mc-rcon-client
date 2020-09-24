@@ -9,11 +9,17 @@
 #include <string>
 #include <iostream>
 
+#include <time.h>
+
+#include "CircularLineBuffer.h"
+
 class RCONClient
 {
     // Variables
     private:
     bool _stopped;
+    CircularLineBuffer *_send_buffer;
+    CircularLineBuffer *_recv_buffer;
     std::string _server_addr;
     std::string _server_port;
     std::thread _send_thread;
@@ -63,6 +69,8 @@ class RCONClient
     RCONClient(std::string serverAddress, std::string serverPort);
     ~RCONClient();
     bool is_stopped();
+    int send_command_to_server(const char *command, int command_length);
+    std::string read_server_response();
 };
 
 #endif
