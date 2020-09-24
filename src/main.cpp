@@ -4,9 +4,9 @@
 
 int main(int argc, char **argv)
 {
-    RCONClient *client = new RCONClient("127.0.0.1", "25575");
-
     std::cout << "Starting RCON Client..." << std::endl;
+
+    RCONClient *client = new RCONClient("127.0.0.1", "25575");
 
     while(!client->is_stopped())
     {

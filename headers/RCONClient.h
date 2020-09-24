@@ -1,6 +1,12 @@
 #ifndef RCON_CLIENT_H
 #define RCON_CLIENT_H
 
+#define RCON_MULTI_PACKET 0
+#define RCON_COMMAND 2
+#define RCON_LOGIN 3
+
+#define RCON_BUFFER_SIZE 4096
+
 #ifndef _WIN32
     #include <pthread.h>
 #endif
@@ -8,10 +14,19 @@
 #include <signal.h>
 #include <string>
 #include <iostream>
-
-#include <time.h>
+#include <cstring>
 
 #include "CircularLineBuffer.h"
+#include "socket.h"
+
+typedef struct _rcon_data
+{
+    int length;
+    int req_id;
+    int type;
+    uint8_t text[RCON_BUFFER_SIZE];
+    uint16_t padding;
+} rcon_data;
 
 class RCONClient
 {
@@ -24,6 +39,7 @@ class RCONClient
     std::string _server_port;
     std::thread _send_thread;
     std::thread _recv_thread;
+    SOCKET _rcon_socket;
 
     // Functions
     private:
@@ -62,6 +78,7 @@ class RCONClient
     }
 
     int _connect();
+    int _close();
     int _send_command();
     int _recv_command();
 
