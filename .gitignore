@@ -1,0 +1,44 @@
+# Tijmen Verhoef, Amsterdam
+
+# VSCode
+.settings/
+.vscode/
+.classpath
+.project
+
+# JetBrains
+.idea/
+
+# C(++)
+*.o
+*.y
+*.out
+
+# C#
+obj/
+
+# Python
+__pycache__/
+venv/
+*.pyc
+
+# Gradle
+.gradle/
+
+# Django
+*.log
+*.pot
+migrations/
+
+# General
+*.env
+database.*
+db.*
+*.db
+
+# build folders
+bin/
+build/
+
+# OSX specific excludes
+.DS_Store
