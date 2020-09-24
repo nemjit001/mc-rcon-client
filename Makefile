@@ -6,6 +6,7 @@ OUT_DIR = obj
 BIN_DIR = bin
 
 CFLAGS = -I $(HDR_DIR) -Werror -Wall -Wpedantic
+LIBS =  -pthread -lpthread
 
 SRC = 	$(wildcard $(SRC_DIR)/*.cpp)
 HDR = 	$(wildcard $(HDR_DIR)/*.h)
@@ -20,19 +21,19 @@ TARGET = MC_RCON_Client
 .PHONY: clean
 
 all: $(TARGET)
+	@echo "Finished all tasks"
 
 $(OUT_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@echo "Creating Object file $@ from $<..."
 	+@[ -d $(OUT_DIR) ] || mkdir -p $(OUT_DIR)
-	$(CC) -MMD $(CFLAGS) -c -o $@ $<
-	@echo "Done"
+	@$(CC) -MMD $(CFLAGS) -c -o $@ $< $(LIBS)
+	@echo "Created $@"
 
 $(TARGET): $(OUT) $(OUT_DIR)/main.o
 	@echo "Building $@ binary..."
 	+@[ -d $(BIN_DIR) ] || mkdir -p $(BIN_DIR)
-	@echo $(SRC)
-	$(CC) -o $(BIN_DIR)/$@ $^ $(CFLAGS)
-	@echo "Done"
+	@$(CC) -o $(BIN_DIR)/$@ $^ $(CFLAGS) $(LIBS)
+	@echo "Created $@ Binary"
 
 clean:
 	@echo "Cleaning Build Folders..."
