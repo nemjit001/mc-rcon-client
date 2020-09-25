@@ -10,7 +10,7 @@
 #define RCON_SOCK_INVALID 2
 #define RCON_REFUSED_BY_HOST 3
 
-#define RCON_BUFFER_SIZE 4096
+#define RCON_MAX_PAYLOAD 4096
 
 #ifndef _WIN32
     #include <pthread.h>
@@ -23,6 +23,15 @@
 
 #include "CircularLineBuffer.h"
 #include "socket.h"
+
+struct rcon
+{
+    int32_t len;
+    int32_t req_id;
+    int32_t req_type;
+    uint8_t *payload;
+    uint16_t padding;
+};
 
 class RCONClient
 {
@@ -37,6 +46,7 @@ class RCONClient
     std::thread _send_thread;
     std::thread _recv_thread;
     SOCKET _rcon_socket;
+    int32_t _start_req_id;
 
     // Functions
     private:
@@ -72,6 +82,45 @@ class RCONClient
                 this->_stopped = true;
             }
         }
+    }
+
+    inline struct rcon *_generate_rcon_packet(const char *msg, size_t msg_len, int32_t req_id, int32_t req_type)
+    {
+        struct rcon *packet = (struct rcon*)malloc(sizeof(struct rcon));
+        packet->len = msg_len + 10;
+        packet->req_id = req_id;
+        packet->req_type = req_type;
+        packet->payload = (uint8_t *)calloc(msg_len, sizeof(uint8_t));
+
+        memcpy(packet->payload, msg, msg_len);
+
+        packet->padding = 0x00;
+
+        return packet;
+    }
+
+    inline char *_pack_rcon_packet(struct rcon *packet)
+    {
+        int packet_size = packet->len + 4;
+
+        char *data = (char *)calloc(packet_size, sizeof(char));
+
+        for (int i = 0; i < 4; i++)
+        {
+            data[0 + i] += (char)(packet->len >> (i * 8));
+            data[4 + i] += (char)(packet->req_id >> (i * 8));
+            data[8 + i] += (char)(packet->req_type) >> (i * 8);
+        }
+
+        for (size_t i = 0; i < strlen((char *)packet->payload); i++)
+        {
+            data[12 + i] = (char)packet->payload[i];
+        }
+
+        data[packet_size - 2] = '\0';
+        data[packet_size - 1] = '\0';
+
+        return data;
     }
 
     int _connect();

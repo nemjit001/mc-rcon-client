@@ -9,6 +9,7 @@ RCONClient::RCONClient(std::string server_address, std::string server_port, std:
     this->_send_buffer = new CircularLineBuffer();
     this->_recv_buffer = new CircularLineBuffer();
     this->_rcon_socket = INVALID_SOCKET;
+    this->_start_req_id = 1;
 
     if (sock_init() != 0)
     {
@@ -38,8 +39,10 @@ RCONClient::RCONClient(std::string server_address, std::string server_port, std:
 
     switch(this->_authenticate())
     {
+        case 0:
+        printf("Authentication Successfull!\n");
+        break;
         default:
-        printf("Authentication Successfull!");
         break;
     }
         
@@ -91,6 +94,10 @@ int RCONClient::_authenticate()
      * recv SERVER_DATA_RESPONSE value with empty body
      * recv SERVER_AUT_RESPONSE with status code
      */
+
+    struct rcon *packet = this->_generate_rcon_packet(this->_server_key.c_str(), this->_server_key.length(), this->_start_req_id++, RCON_SERVERDATA_AUTH);
+    
+    send(this->_rcon_socket, this->_pack_rcon_packet(packet), packet->len + 4, 0);
 
     return 0;
 }
