@@ -128,11 +128,15 @@ class RCONClient
     {
         struct rcon *packet = (struct rcon *)malloc(sizeof(struct rcon));
 
+        packet->len = 0;
+        packet->req_id = 0;
+        packet->req_type = 0;
+
         for (int i = 3; i >= 0; i--)
         {
-            packet->len += buffer[0 + i] << (8 * i);
-            packet->req_id += buffer[4 + i] << (8 * i);
-            packet->req_type += buffer[8 + i] << (8 * i);
+            packet->len += (uint8_t)buffer[0 + i] >> (8 * i);
+            packet->req_id += (uint8_t)buffer[4 + i] >> (8 * i);
+            packet->req_type += (uint8_t)buffer[8 + i] >> (8 * i);
         }
 
         int msg_len = packet->len - 10;
@@ -143,10 +147,7 @@ class RCONClient
             packet->payload[i] = buffer[12 + i];
         }
 
-        for (int i = 0; i < 2; i++)
-        {
-            packet->padding += buffer[msg_len + i] >> (8 * i);
-        }
+        packet->padding = 0x00;
 
         return packet;
     }
