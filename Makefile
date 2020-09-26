@@ -18,7 +18,7 @@ _HDR := $(OUT:.o=.d)
 
 TARGET = MC_RCON_Client
 
-.PHONY: clean
+.PHONY: clean all
 
 all: $(TARGET)
 	@echo "Finished all tasks"

@@ -7,30 +7,29 @@ RCONClient::RCONClient(std::string server_address, std::string server_port, std:
     this->_server_key = key;
     this->_stopped = false;
     this->_send_buffer = new CircularLineBuffer();
-    this->_recv_buffer = new CircularLineBuffer();
     this->_rcon_socket = INVALID_SOCKET;
     this->_start_req_id = 1;
 
     if (sock_init() != 0)
     {
         this->_stopped = true;
-        printf("Socket Initialization Failed...\n");
+        printf("\u001b[31m[ERROR]\u001b[37m Socket Initialization Failed\n");
     }
 
     switch(this->_connect())
     {
         case RCON_CONNECT_OK:
-        printf("Connected to RCON enabled server!\n");
+        printf("\u001b[32m[INFO]\u001b[37m Connected to server\n");
         break;
         case RCON_ADDR_INFO_INVALID:
-        printf("Address Info was invalid, error code: %d\n", sock_error_code());
+        printf("\u001b[31m[ERROR]\u001b[37m Address Info was invalid, error code: %d\n", sock_error_code());
         this->_stopped = true;
         break;
         case RCON_SOCK_INVALID:
-        printf("Socket is invalid, error code: %d\n", sock_error_code());
+        printf("\u001b[31m[ERROR]\u001b[37m Socket is invalid, error code: %d\n", sock_error_code());
         this->_stopped = true;
         case RCON_REFUSED_BY_HOST:
-        printf("Failed to connect to Server, error code: %d\n", sock_error_code());
+        printf("\u001b[31m[ERROR]\u001b[37m Failed to connect to Server, error code: %d\n", sock_error_code());
         this->_stopped = true;
         break;
         default:
@@ -40,7 +39,19 @@ RCONClient::RCONClient(std::string server_address, std::string server_port, std:
     switch(this->_authenticate())
     {
         case 0:
-        printf("Authentication Successfull!\n");
+        printf("\u001b[32m[INFO]\u001b[37m Logged in. Type 'quit' or 'exit' to end session\n");
+        break;
+        case 1:
+        printf("\u001b[31m[ERROR]\u001b[37m Sending Auth request failed\n");
+        this->_stopped = true;
+        break;
+        case 2:
+        printf("\u001b[31m[ERROR]\u001b[37m Receiving failed, no response from server\n");
+        this->_stopped = true;
+        break;
+        case 3:
+        printf("\u001b[31m[ERROR]\u001b[37m Authentication failed\n");
+        this->_stopped = true;
         break;
         default:
         break;
@@ -57,7 +68,6 @@ RCONClient::~RCONClient()
     sock_quit();
 
     delete this->_send_buffer;
-    delete this->_recv_buffer;
 }
 
 int RCONClient::_connect()
@@ -91,13 +101,27 @@ int RCONClient::_authenticate()
     /*
      * Auth flow:
      * send with password in body and RCON_LOGIN as type
-     * recv SERVER_DATA_RESPONSE value with empty body
-     * recv SERVER_AUT_RESPONSE with status code
+     * recv SERVER_DATA_RESPONSE value with empty body, id of -1 is failed, same id is completed
      */
+
+    char *buffer = (char *)calloc(RCON_MAX_PACKET_SIZE, sizeof(char));
 
     struct rcon *packet = this->_generate_rcon_packet(this->_server_key.c_str(), this->_server_key.length(), this->_start_req_id++, RCON_SERVERDATA_AUTH);
     
-    send(this->_rcon_socket, this->_pack_rcon_packet(packet), packet->len + 4, 0);
+    if (send(this->_rcon_socket, this->_pack_rcon_packet(packet), packet->len + 4, 0) < 0)
+        return 1;
+
+    if (recv(this->_rcon_socket, buffer, RCON_MAX_PACKET_SIZE, 0) <= 0)
+        return 2;
+
+    struct rcon *return_packet = this->_unpack_rcon_packet(buffer);
+
+    if (return_packet->req_id != packet->req_id)
+        return 3;
+
+    free(buffer);
+    free(packet);
+    free(return_packet);
 
     return 0;
 }
@@ -109,13 +133,32 @@ int RCONClient::_close()
 
 int RCONClient::_send_command()
 {
-    std::string command = this->_send_buffer->read();
-    std::cout << command;
+    std::string command;
+    
+    getline(std::cin, command);
+
+    if (command == "exit" || command == "quit")
+        return 1;
+    
+    command += '\n';
+    this->_send_buffer->write(command.c_str(), command.length());
+
     return 0;
 }
 
 int RCONClient::_recv_command()
 {
+    char buffer[RCON_MAX_PACKET_SIZE];
+
+    if (recv(this->_rcon_socket, buffer, RCON_MAX_PACKET_SIZE, 0) <= 0)
+        return -1;
+
+    struct rcon *packet = this->_unpack_rcon_packet(buffer);
+    
+    printf("%d|%s\n", packet->req_id, packet->payload);
+
+    this->_free_packet(packet);
+
     return 0;
 }
 
@@ -125,14 +168,19 @@ bool RCONClient::is_stopped()
     return this->_stopped;
 }
 
-int RCONClient::send_command_to_server(const char *command, int command_length)
+int RCONClient::step()
 {
-    // writes to the send buffer so the send thread can consume it when it is available again
-    return this->_send_buffer->write(command, command_length);
-}
+    std::string command = this->_send_buffer->read();
 
-std::string RCONClient::read_server_response()
-{
-    // reads responses in the order they come in
-    return this->_recv_buffer->read();
+    if (command != "")
+    {
+        struct rcon *packet = this->_generate_rcon_packet(command.c_str(), command.length(), this->_start_req_id++, RCON_SERVERDATA_EXECCOMMAND);
+
+        if (send(this->_rcon_socket, this->_pack_rcon_packet(packet), packet->len + 4, 0) < 0)
+            return -1;
+
+        this->_free_packet(packet);
+    }
+
+    return 0;
 }

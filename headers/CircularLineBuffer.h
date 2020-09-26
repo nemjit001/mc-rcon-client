@@ -1,6 +1,8 @@
 #ifndef CIRCULAR_BUFFER_H
 #define CIRCULAR_BUFFER_H
 
+#define CIRCULAR_LINE_BUFFER_SIZE 16384
+
 #include <cstdlib>
 #include <mutex>
 #include <string>

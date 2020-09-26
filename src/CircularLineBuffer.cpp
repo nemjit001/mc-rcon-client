@@ -2,7 +2,7 @@
 
 CircularLineBuffer::CircularLineBuffer()
 {
-    this->_buffer_size = 4096;
+    this->_buffer_size = CIRCULAR_LINE_BUFFER_SIZE;
     this->_buffer = (char *)calloc(this->_buffer_size, sizeof(char));
     this->_start = this->_count = 0;
 }
@@ -33,7 +33,7 @@ std::string CircularLineBuffer::_read()
 
     int end_idx = this->_find_newline();
 
-    for (int i = 0; i < end_idx + 1; i++)
+    for (int i = 0; i < end_idx; i++)
     {
         res += this->_buffer[this->_shifted_index(i)];
         this->_buffer[this->_shifted_index(i)] = '\0';
@@ -41,7 +41,9 @@ std::string CircularLineBuffer::_read()
         this->_count--;
     }
 
-    this->_start = end_idx;
+    this->_buffer[end_idx] = '\0';
+    this->_count--;
+    this->_start = end_idx + 1;
 
     return res;
 }

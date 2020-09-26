@@ -11,6 +11,7 @@
 #define RCON_REFUSED_BY_HOST 3
 
 #define RCON_MAX_PAYLOAD 4096
+#define RCON_MAX_PACKET_SIZE RCON_MAX_PAYLOAD + 14
 
 #ifndef _WIN32
     #include <pthread.h>
@@ -29,7 +30,7 @@ struct rcon
     int32_t len;
     int32_t req_id;
     int32_t req_type;
-    uint8_t *payload;
+    char *payload;
     uint16_t padding;
 };
 
@@ -39,12 +40,12 @@ class RCONClient
     private:
     bool _stopped;
     CircularLineBuffer *_send_buffer;
-    CircularLineBuffer *_recv_buffer;
     std::string _server_addr;
     std::string _server_port;
     std::string _server_key;
     std::thread _send_thread;
     std::thread _recv_thread;
+    std::mutex _output_mtx;
     SOCKET _rcon_socket;
     int32_t _start_req_id;
 
@@ -90,9 +91,9 @@ class RCONClient
         packet->len = msg_len + 10;
         packet->req_id = req_id;
         packet->req_type = req_type;
-        packet->payload = (uint8_t *)calloc(msg_len, sizeof(uint8_t));
+        packet->payload = (char *)calloc(msg_len, sizeof(char));
 
-        memcpy(packet->payload, msg, msg_len);
+        strcpy(packet->payload, msg);
 
         packet->padding = 0x00;
 
@@ -114,13 +115,46 @@ class RCONClient
 
         for (size_t i = 0; i < strlen((char *)packet->payload); i++)
         {
-            data[12 + i] = (char)packet->payload[i];
+            data[12 + i] = packet->payload[i];
         }
 
         data[packet_size - 2] = '\0';
         data[packet_size - 1] = '\0';
 
         return data;
+    }
+
+    inline struct rcon *_unpack_rcon_packet(const char *buffer)
+    {
+        struct rcon *packet = (struct rcon *)malloc(sizeof(struct rcon));
+
+        for (int i = 3; i >= 0; i--)
+        {
+            packet->len += buffer[0 + i] << (8 * i);
+            packet->req_id += buffer[4 + i] << (8 * i);
+            packet->req_type += buffer[8 + i] << (8 * i);
+        }
+
+        int msg_len = packet->len - 10;
+        packet->payload = (char *)calloc(msg_len, sizeof(char));
+
+        for (int i = 0; i < msg_len; i++)
+        {
+            packet->payload[i] = buffer[12 + i];
+        }
+
+        for (int i = 0; i < 2; i++)
+        {
+            packet->padding += buffer[msg_len + i] >> (8 * i);
+        }
+
+        return packet;
+    }
+
+    inline void _free_packet(struct rcon *packet)
+    {
+        free(packet->payload);
+        free(packet);
     }
 
     int _connect();
@@ -133,8 +167,7 @@ class RCONClient
     RCONClient(std::string server_address, std::string server_port, std::string key);
     ~RCONClient();
     bool is_stopped();
-    int send_command_to_server(const char *command, int command_length);
-    std::string read_server_response();
+    int step();
 };
 
 #endif
