@@ -14,7 +14,10 @@
 #define RCON_MAX_PACKET_SIZE RCON_MAX_PAYLOAD + 14
 
 #ifndef _WIN32
+    #define USE_ANSI 1
     #include <pthread.h>
+#else
+    #define USE_ANSI 0
 #endif
 #include <thread>
 #include <signal.h>
