@@ -7,6 +7,9 @@ include_directories(headers)
 include(CTest)
 enable_testing()
 
+set(TARGET_NAME ${PROJECT_NAME})
+set(CMAKE_BUILD_TYPE, Release)
+
 add_executable(
     MC_RCON_Client
     src/main.cpp 

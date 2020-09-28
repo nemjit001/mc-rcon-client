@@ -134,9 +134,9 @@ class RCONClient
 
         for (int i = 3; i >= 0; i--)
         {
-            packet->len += (uint8_t)buffer[0 + i] >> (8 * i);
-            packet->req_id += (uint8_t)buffer[4 + i] >> (8 * i);
-            packet->req_type += (uint8_t)buffer[8 + i] >> (8 * i);
+            packet->len += buffer[0 + i] << (8 * i);
+            packet->req_id += buffer[4 + i] << (8 * i);
+            packet->req_type += buffer[8 + i] << (8 * i);
         }
 
         int msg_len = packet->len - 10;
