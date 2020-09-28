@@ -105,10 +105,12 @@ int RCONClient::_authenticate()
      */
 
     char *buffer = (char *)calloc(RCON_MAX_PACKET_SIZE, sizeof(char));
+    char *packed_packet;
 
     struct rcon *packet = this->_generate_rcon_packet(this->_server_key.c_str(), this->_server_key.length(), this->_start_req_id++, RCON_SERVERDATA_AUTH);
+    packed_packet = this->_pack_rcon_packet(packet);
     
-    if (send(this->_rcon_socket, this->_pack_rcon_packet(packet), packet->len + 4, 0) < 0)
+    if (send(this->_rcon_socket, packed_packet, packet->len + 4, 0) < 0)
         return 1;
 
     if (recv(this->_rcon_socket, buffer, RCON_MAX_PACKET_SIZE, 0) <= 0)
@@ -120,8 +122,9 @@ int RCONClient::_authenticate()
         return 3;
 
     free(buffer);
-    free(packet);
-    free(return_packet);
+    free(packed_packet);
+    this->_free_packet(packet);
+    this->_free_packet(return_packet);
 
     return 0;
 }

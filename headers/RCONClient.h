@@ -93,7 +93,10 @@ class RCONClient
         packet->req_type = req_type;
         packet->payload = (char *)calloc(msg_len, sizeof(char));
 
-        strcpy(packet->payload, msg);
+        for (size_t i = 0; i < msg_len; i++)
+        {
+            packet->payload[i] = msg[i];
+        }
 
         packet->padding = 0x00;
 
@@ -113,7 +116,7 @@ class RCONClient
             data[8 + i] += (char)(packet->req_type) >> (i * 8);
         }
 
-        for (size_t i = 0; i < strlen((char *)packet->payload); i++)
+        for (size_t i = 0; i < strlen(packet->payload); i++)
         {
             data[12 + i] = packet->payload[i];
         }

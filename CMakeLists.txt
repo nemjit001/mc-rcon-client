@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(MC_RCON_Client VERSION 0.1.0)
 
+set(TARGET_NAME ${PROJECT_NAME})
+set(CMAKE_CXX_STANDARD 17)
+
 include_directories(src)
 include_directories(headers)
 
 include(CTest)
 enable_testing()
-
-set(TARGET_NAME ${PROJECT_NAME})
-set(CMAKE_BUILD_TYPE, Release)
 
 add_executable(
     MC_RCON_Client
@@ -18,7 +18,14 @@ add_executable(
     src/socket.cpp
 )
 
-link_libraries(Ws2_win32)
+if(WIN32)
+    target_link_libraries(${TARGET_NAME} Ws2_32)
+else()
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(${TARGET_NAME} Threads::Threads)
+endif()
+
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
