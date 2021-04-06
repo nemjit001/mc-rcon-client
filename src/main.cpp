@@ -2,27 +2,71 @@
 
 #include "RCONClient.h"
 
-int main(int argc, char **argv)
+#define SETUP_RETRIES 3
+
+struct connection_params
+{
+    std::string hostname;
+    std::string port;
+    std::string password;
+};
+
+void connection_setup(struct connection_params &params)
 {
     std::string host, port, password;
-    std::cout << (USE_ANSI ? "\u001b[32m[INFO]\u001b[37m Starting RCON Client..."  : "[INFO] Starting RCON Client...") << std::endl;
 
-    std::cout << (USE_ANSI ? "\u001b[36m[SETUP]\u001b[37m Enter Host (Default 127.0.0.1): " : "[SETUP] Enter Host (Default 127.0.0.1): ");
+    UI::print_setup(SETUP_HOSTNAME);
     getline(std::cin, host);
 
-    std::cout << (USE_ANSI ? "\u001b[36m[SETUP]\u001b[37m Enter Port (Default 25575): " : "[SETUP] Enter Port (Default 25575): ");
+    UI::print_setup(SETUP_PORT);
     getline(std::cin, port);
 
-    std::cout << (USE_ANSI ? "\u001b[36m[SETUP]\u001b[37m Enter Password: " : "[SETUP] Enter Password: ");
+    UI::print_setup(SETUP_PASSWORD);
     std::getline(std::cin, password);
 
-    if (host == "") host = "127.0.0.1";
-    if (port == "") port = "25575";
+    if (host == "")
+        host = "127.0.0.1";
+        
+    if (port == "")
+        port = "25575";
 
-    printf((USE_ANSI ? "\u001b[32m[INFO]\u001b[37m Setting up connection to %s:%s\n" : "[INFO] Setting up connection to %s:%s\n"), host.c_str(), port.c_str());
+    params.hostname = host;
+    params.port = port;
+    params.password = password;
 
-    RCONClient *client = new RCONClient(host, port, password);
-    std::string command;
+    UI::print_info(INFO_CONNECTION_SETUP);
+}
+
+int main(int argc, char **argv)
+{
+    bool successful_setup = false;
+    RCONClient *client = new RCONClient();
+    UI::print_info(INFO_START);
+    
+    for (int i = 0; i < SETUP_RETRIES; i++)
+    {
+        struct connection_params params;
+        connection_setup(params);
+
+        if (client->init(params.hostname, params.port, params.password) == 0)
+        {
+            successful_setup = true;
+
+            break;
+        }
+    }
+
+    if (!successful_setup)
+    {
+        delete client;
+        
+        UI::print_error(ERROR_INIT_FAILED);
+
+        return 1;
+    }
+
+    // after successful init we can start the client
+    client->start();
 
     while(!client->is_stopped() && client->step() == 0)
     {
@@ -31,7 +75,9 @@ int main(int argc, char **argv)
         );
     }
 
-    std::cout << (USE_ANSI ? "\u001b[32m[INFO]\u001b[37m Exit OK" : "[INFO] Exit OK") << std::endl;
     delete client;
+
+    UI::print_info(INFO_EXIT_OK);
+
     return 0;
 }

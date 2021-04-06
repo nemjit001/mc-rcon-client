@@ -16,6 +16,7 @@ add_executable(
     src/CircularLineBuffer.cpp 
     src/RCONClient.cpp 
     src/socket.cpp
+    src/UI.cpp
 )
 
 if(WIN32)

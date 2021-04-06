@@ -1,70 +1,21 @@
 #include "RCONClient.h"
 
-RCONClient::RCONClient(std::string server_address, std::string server_port, std::string key)
+RCONClient::RCONClient()
 {
-    this->_server_addr = server_address;
-    this->_server_port = server_port;
-    this->_server_key = key;
+    this->_server_addr = "";
+    this->_server_port = "";
+    this->_server_key = "";
     this->_stopped = false;
     this->_send_buffer = new CircularLineBuffer();
     this->_rcon_socket = INVALID_SOCKET;
     this->_start_req_id = 1;
-
-    if (sock_init() != 0)
-    {
-        this->_stopped = true;
-        printf(USE_ANSI ? "\u001b[31m[ERROR]\u001b[37m Socket Initialization Failed\n" : "[ERROR] Socket Initialization Failed\n");
-    }
-
-    switch(this->_connect())
-    {
-        case RCON_CONNECT_OK:
-        printf(USE_ANSI ? "\u001b[32m[INFO]\u001b[37m Connected to server\n" : "[INFO] Connected to server\n");
-        break;
-        case RCON_ADDR_INFO_INVALID:
-        printf(USE_ANSI ? "\u001b[31m[ERROR]\u001b[37m Address Info was invalid, error code: %d\n" : "[ERROR] Address Info was invalid, error code: %d\n", sock_error_code());
-        this->_stopped = true;
-        break;
-        case RCON_SOCK_INVALID:
-        printf(USE_ANSI ? "\u001b[31m[ERROR]\u001b[37m Socket is invalid, error code: %d\n" : "[ERROR] Socket is invalid, error code: %d\n", sock_error_code());
-        this->_stopped = true;
-        case RCON_REFUSED_BY_HOST:
-        printf(USE_ANSI ? "\u001b[31m[ERROR]\u001b[37m Failed to connect to Server, error code: %d\n" : "[ERROR] Failed to connect to Server, error code: %d\n", sock_error_code());
-        this->_stopped = true;
-        break;
-        default:
-        break;
-    }
-
-    switch(this->_authenticate())
-    {
-        case 0:
-        printf(USE_ANSI ? "\u001b[32m[INFO]\u001b[37m Logged in. Type 'quit' or 'exit' to end session\n" : "[INFO] Logged in. Type 'quit' or 'exit' to end session\n");
-        break;
-        case 1:
-        printf(USE_ANSI ? "\u001b[31m[ERROR]\u001b[37m Sending Auth request failed\n" : "[ERROR] Sending Auth request failed\n");
-        this->_stopped = true;
-        break;
-        case 2:
-        printf(USE_ANSI ? "\u001b[31m[ERROR]\u001b[37m Receiving failed, no response from server\n" : "[ERROR] Receiving failed, no response from server\n");
-        this->_stopped = true;
-        break;
-        case 3:
-        printf(USE_ANSI ? "\u001b[31m[ERROR]\u001b[37m Authentication failed\n" : "[ERROR] Authentication failed\n");
-        this->_stopped = true;
-        break;
-        default:
-        break;
-    }
-        
-    this->_start_threads();
 }
 
 RCONClient::~RCONClient()
 {
     this->_close();
     this->_stop_threads();
-
+    
     sock_quit();
 
     delete this->_send_buffer;
@@ -153,18 +104,88 @@ int RCONClient::_recv_command()
 {
     char buffer[RCON_MAX_PACKET_SIZE];
 
+    memset(&buffer, 0, sizeof(buffer));
+
     if (recv(this->_rcon_socket, buffer, RCON_MAX_PACKET_SIZE, 0) <= 0)
         return -1;
 
     struct rcon *packet = this->_unpack_rcon_packet(buffer);
     
-    printf("[RCON] %s\n", packet->payload);
+    UI::print_msg(packet->payload);
 
     this->_free_packet(packet);
 
     return 0;
 }
 
+int RCONClient::init(std::string server_address, std::string server_port, std::string key)
+{
+    this->_server_addr = server_address;
+    this->_server_port = server_port;
+    this->_server_key = key;
+    this->_stopped = false;
+
+    if (sock_init() != 0)
+    {
+        this->_stopped = true;
+        UI::print_error(ERROR_SOCK_INIT_FAILED);
+        return 1;
+    }
+
+    int res = this->_connect();
+    if (res == RCON_CONNECT_OK)
+    {
+        UI::print_info(INFO_CONNECT_OK);
+    }
+    else
+    {
+        this->_stopped = true;
+        switch(res)
+        {
+        case RCON_ADDR_INFO_INVALID:
+            UI::print_error(ERROR_INVALID_SERVER_ADDRESS);
+            break;
+        case RCON_SOCK_INVALID:
+            UI::print_error(ERROR_INVALID_SOCKET_RES);
+            break;
+        case RCON_REFUSED_BY_HOST:
+            UI::print_error(ERROR_CONNECT_FAILED);
+            break;
+        default:
+            break;
+        }
+
+        return 1;
+    }
+
+    res = this->_authenticate();
+    if (res == 0)
+    {
+        UI::print_info(INFO_LOGIN_OK);
+    }
+    else
+    {
+        this->_stopped = true;
+        switch(res)
+        {
+        case 1:
+            UI::print_error(ERROR_AUTH_SEND_FAILED);
+            break;
+        case 2:
+            UI::print_error(ERROR_AUTH_RECV_FAILED);
+            break;
+        case 3:
+            UI::print_error(ERROR_AUTH_FAILED);
+            break;
+        default:
+            break;
+        }
+
+        return 1;
+    }
+
+    return 0;
+}
 
 bool RCONClient::is_stopped()
 {
