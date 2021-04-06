@@ -14,17 +14,15 @@
 #define RCON_MAX_PACKET_SIZE RCON_MAX_PAYLOAD + 14
 
 #ifndef _WIN32
-    #define USE_ANSI 1
     #include <pthread.h>
-#else
-    #define USE_ANSI 0
 #endif
+
 #include <thread>
 #include <signal.h>
 #include <string>
-#include <iostream>
 #include <cstring>
 
+#include "UI.h"
 #include "CircularLineBuffer.h"
 #include "socket.h"
 
@@ -53,7 +51,7 @@ class RCONClient
     int32_t _start_req_id;
 
     // Functions
-    private:
+private:
     inline void _start_threads()
     {
         this->_send_thread = std::thread(&RCONClient::__send_command, this);
@@ -62,8 +60,11 @@ class RCONClient
 
     inline void _stop_threads()
     {
-        this->_send_thread.join();
-        this->_recv_thread.join();
+        if (this->_send_thread.joinable())
+            this->_send_thread.join();
+        
+        if (this->_recv_thread.joinable())
+            this->_recv_thread.join();
     }
 
     inline void __send_command()
@@ -132,7 +133,7 @@ class RCONClient
 
     inline struct rcon *_unpack_rcon_packet(const char *buffer)
     {
-        struct rcon *packet = (struct rcon *)malloc(sizeof(struct rcon));
+        struct rcon *packet = (struct rcon *)calloc(sizeof(struct rcon), 1);
 
         packet->len = 0;
         packet->req_id = 0;
@@ -170,11 +171,15 @@ class RCONClient
     int _send_command();
     int _recv_command();
 
-    public:
-    RCONClient(std::string server_address, std::string server_port, std::string key);
+public:
+    RCONClient();
     ~RCONClient();
+
+    int init(std::string server_address, std::string server_port, std::string key);
     bool is_stopped();
     int step();
+
+    inline void start () { this->_start_threads(); }
 };
 
 #endif

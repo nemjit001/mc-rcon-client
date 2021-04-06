@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(MC_RCON_Client VERSION 0.1.0)
+project(MC_RCON_Client VERSION 1.1.0)
 
 set(TARGET_NAME ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 17)
@@ -16,6 +16,7 @@ add_executable(
     src/CircularLineBuffer.cpp 
     src/RCONClient.cpp 
     src/socket.cpp
+    src/UI.cpp
 )
 
 if(WIN32)
