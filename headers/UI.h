@@ -1,6 +1,7 @@
 #ifndef UI_H
 #define UI_H
 
+#include <string.h>
 #include <iostream>
 
 typedef enum

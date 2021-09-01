@@ -2,6 +2,9 @@
 
 void UI::print_msg(const char *msg)
 {
+    if (strlen(msg) == 0)
+        return;
+        
     printf("[RCON] %s\n", msg);
 }   
 
