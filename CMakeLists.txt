@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(MC_RCON_Client VERSION 1.1.0)
+project(MC_RCON_Client VERSION 1.1.0 DESCRIPTION "RCON Client for Minecraft servers")
+include(GNUInstallDirs)
 
 set(TARGET_NAME ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 17)
-
-include_directories(src)
-include_directories(headers)
+set(EXECUTABLE_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/bin)
+set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 
 include(CTest)
 enable_testing()
 
 add_executable(
-    MC_RCON_Client
+    ${TARGET_NAME}
     src/main.cpp 
     src/CircularLineBuffer.cpp 
     src/RCONClient.cpp 
@@ -27,6 +27,12 @@ else()
     target_link_libraries(${TARGET_NAME} Threads::Threads)
 endif()
 
-set(CPACK_PROJECT_NAME ${PROJECT_NAME})
-set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
-include(CPack)
+target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Werror -pedantic -g)
+
+target_include_directories(${TARGET_NAME} PRIVATE src)
+target_include_directories(${TARGET_NAME} PRIVATE headers)
+
+install(
+    TARGETS ${TARGET_NAME}
+    RUNTIME
+)

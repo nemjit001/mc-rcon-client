@@ -30,6 +30,12 @@ venv/
 *.pot
 migrations/
 
+# CMake
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+*.tcl
+
 # General
 *.env
 database.*
@@ -42,3 +48,6 @@ build/
 
 # OSX specific excludes
 .DS_Store
+
+# Project ignores
+Makefile
