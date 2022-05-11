@@ -37,7 +37,7 @@ void connection_setup(struct connection_params &params)
     UI::print_info(INFO_CONNECTION_SETUP);
 }
 
-int main(int argc, char **argv)
+int main(__attribute__((unused)) int argc, __attribute__((unused)) char **argv)
 {
     bool successful_setup = false;
     RCONClient *client = new RCONClient();
