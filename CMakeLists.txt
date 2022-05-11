@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(MC_RCON_Client VERSION 1.1.0 DESCRIPTION "RCON Client for Minecraft servers")
 include(GNUInstallDirs)
+include(CTest)
 
 set(TARGET_NAME ${PROJECT_NAME})
 set(CMAKE_CXX_STANDARD 17)
@@ -12,11 +13,9 @@ enable_testing()
 
 add_executable(
     ${TARGET_NAME}
-    src/main.cpp 
-    src/CircularLineBuffer.cpp 
-    src/RCONClient.cpp 
     src/socket.cpp
-    src/UI.cpp
+    src/RCONClient.cpp
+    src/main.cpp
 )
 
 if(WIN32)

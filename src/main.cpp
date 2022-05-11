@@ -2,82 +2,29 @@
 
 #include "RCONClient.h"
 
-#define SETUP_RETRIES 3
-
-struct connection_params
+int main()
 {
-    std::string hostname;
-    std::string port;
-    std::string password;
-};
+    sock_init();
 
-void connection_setup(struct connection_params &params)
-{
-    std::string host, port, password;
+    RCONClient client("127.0.0.1", "25575", AF_INET);
 
-    UI::print_setup(SETUP_HOSTNAME);
-    getline(std::cin, host);
+    if (!client.isConnected())
+        return 0;
 
-    UI::print_setup(SETUP_PORT);
-    getline(std::cin, port);
+    client.authenticate("42", 2);
 
-    UI::print_setup(SETUP_PASSWORD);
-    std::getline(std::cin, password);
+    printf("%d %d\n", client.isAuthenticated(), client.isConnected());
 
-    if (host == "")
-        host = "127.0.0.1";
-        
-    if (port == "")
-        port = "25575";
-
-    params.hostname = host;
-    params.port = port;
-    params.password = password;
-
-    UI::print_info(INFO_CONNECTION_SETUP);
-}
-
-int main(__attribute__((unused)) int argc, __attribute__((unused)) char **argv)
-{
-    bool successful_setup = false;
-    RCONClient *client = new RCONClient();
-    UI::print_info(INFO_START);
+    if (!client.isAuthenticated())
+        return 0;
     
-    for (int i = 0; i < SETUP_RETRIES; i++)
-    {
-        struct connection_params params;
-        connection_setup(params);
+    char* responseBuffer = nullptr;
+    client.sendCommand("/help", 5);
+    client.recvResponse(&responseBuffer);
 
-        if (client->init(params.hostname, params.port, params.password) == 0)
-        {
-            successful_setup = true;
+    printf("%s\n", responseBuffer);
 
-            break;
-        }
-    }
-
-    if (!successful_setup)
-    {
-        delete client;
-        
-        UI::print_error(ERROR_INIT_FAILED);
-
-        return 1;
-    }
-
-    // after successful init we can start the client
-    client->start();
-
-    while(!client->is_stopped() && client->step() == 0)
-    {
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(10)
-        );
-    }
-
-    delete client;
-
-    UI::print_info(INFO_EXIT_OK);
-
+    free(responseBuffer);
+    sock_quit();
     return 0;
 }

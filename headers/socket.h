@@ -1,5 +1,4 @@
-#ifndef SOCKET_H
-#define SOCKET_H
+#pragma once
 
 #ifdef _WIN32
     #ifndef _WIN32_WINNT
@@ -21,8 +20,6 @@
 
     #define INVALID_SOCKET (SOCKET (~0))
     #define SOCKET_ERROR (-1)
-#endif
-
 #endif
 
 int sock_init();
