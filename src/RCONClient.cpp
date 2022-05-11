@@ -14,16 +14,11 @@
 RCONPacket::RCONPacket(int32_t packetID, RCONPacketType packetType, uint8_t* pPacketData, size_t dataSize) :
     m_packetSize(0), m_packetID(packetID), m_packetType(static_cast<int32_t>(packetType)), m_pPacketData(nullptr), m_zero(0)
 {
-    assert(pPacketData);
-
     if (!pPacketData)
         return;
 
     m_packetSize = RCON_PACKET_MIN_SIZE + dataSize;
     m_pPacketData = (uint8_t*)calloc(dataSize, sizeof(uint8_t));
-
-    if (m_pPacketData == nullptr)
-        return;
 
     memcpy(m_pPacketData, pPacketData, dataSize);
 }
@@ -36,9 +31,14 @@ RCONPacket::~RCONPacket()
 
 bool RCONPacket::isValid()
 {
-    return  (m_pPacketData != nullptr) && \
-            (m_packetSize >= static_cast<int32_t>(RCON_PACKET_MIN_SIZE)) && \
-            (m_packetType == 0 || m_packetType == 2 || m_packetType == 3);
+    return  (m_packetSize >= static_cast<int32_t>(RCON_PACKET_MIN_SIZE)) && \
+            (
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE) || \
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_EXECCOMMAND)    || \
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH_RESPONSE)  || \
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH)           || \
+                m_packetType == static_cast<int32_t>(RCONPacketType::RCON_FRAGMENT_PROBE)
+            );
 }
 
 size_t RCONPacket::getDataSegmentSize()
@@ -162,9 +162,10 @@ RCONPacket* RCONClient::_recvPacket()
     int32_t packetSize = 0;
     int res = recv(m_RCONServerSocket, &packetSize, sizeof(int32_t), 0);
 
-    if (res < 0)
+    if (res <= 0)
         return nullptr;
 
+    printf("%d\n", res);
     assert(res == sizeof(int32_t));
 
     uint8_t* pDataBuffer = (uint8_t*)calloc(packetSize, sizeof(uint8_t));
@@ -253,11 +254,14 @@ int RCONClient::sendCommand(const char* commandBuff, size_t commandBuffLength)
 
     m_lastSentPacketID++;
     RCONPacket* pPacket = new RCONPacket(m_lastSentPacketID, RCONPacketType::SERVERDATA_EXECCOMMAND, (uint8_t*)commandBuff, commandBuffLength);
-    
-    ssize_t sentBytes = _sendPacket(pPacket);
+    ssize_t sendResult = _sendPacket(pPacket);
 
     delete pPacket;
-    return sentBytes;
+
+    if (sendResult < 0)
+        return sendResult;
+
+    return commandBuffLength;
 }
 
 ssize_t RCONClient::recvResponse(char** ppOutBuffer)
@@ -267,14 +271,58 @@ ssize_t RCONClient::recvResponse(char** ppOutBuffer)
     
     if (!ppOutBuffer)
         return -1;
+    
+    size_t outBufferOffset = 0;
+    size_t outBufferSize = 0;
+    *ppOutBuffer = nullptr;
+    do {
+        RCONPacket* pPacket = _recvPacket();
 
-    RCONPacket* pPacket = _recvPacket();
-    m_lastReceivedPacketID = pPacket->m_packetID;
+        if (!pPacket)
+            return static_cast<ssize_t>(RCONErrorCode::ERROR_RECV_FAILED);
 
-    size_t outBufferSize = pPacket->getDataSegmentSize();
-    *ppOutBuffer = (char*)calloc(outBufferSize, sizeof(char));
-    memcpy(*ppOutBuffer, pPacket->m_pPacketData, outBufferSize);
+        if (pPacket->m_packetType != static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE))
+        {
+            delete pPacket;
+            return static_cast<ssize_t>(RCONErrorCode::ERROR_PACKET_INVALID);
+        }
 
-    delete pPacket;
+        size_t dataSegmentSize = pPacket->getDataSegmentSize();
+        outBufferSize += dataSegmentSize;
+
+        if (*ppOutBuffer == nullptr)
+        {
+            *ppOutBuffer = (char*)calloc(outBufferSize, sizeof(char));
+
+            if (!*ppOutBuffer)
+            {
+                delete pPacket;
+                return -1;
+            }
+        }
+        else
+        {
+            char* temp = (char*)realloc(ppOutBuffer, outBufferSize * sizeof(char));
+
+            if (!temp)
+            {
+                free(*ppOutBuffer);
+                delete pPacket;
+                return -1;
+            }
+
+            *ppOutBuffer = temp;
+        }
+
+
+        memcpy((*ppOutBuffer) + outBufferOffset, pPacket->m_pPacketData, dataSegmentSize);
+        outBufferOffset += dataSegmentSize;
+
+        m_lastReceivedPacketID = pPacket->m_packetID;
+        printf("%d %d %zu\n", m_lastSentPacketID, m_lastReceivedPacketID, outBufferSize);
+
+        delete pPacket;
+    } while(m_lastReceivedPacketID != m_lastSentPacketID);
+
     return outBufferSize;
 }

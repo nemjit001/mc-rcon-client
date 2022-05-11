@@ -18,7 +18,8 @@ enum class RCONErrorCode
 {
     ERROR_PACKET_TOO_LONG       = -1,
     ERROR_PACKET_INVALID        = -2,
-    ERROR_SEND_FAILED           = -4
+    ERROR_SEND_FAILED           = -4,
+    ERROR_RECV_FAILED           = -8
 };
 
 struct RCONPacket
