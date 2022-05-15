@@ -12,21 +12,21 @@ int main()
     if (!client.isConnected())
     {
         printf("Not connected to server\n");
-        goto error;
+        sock_quit();
+        return -1;
     }
 
-    client.authenticate("42", 2);
+    client.authenticate("test_rcon", 9);
 
     if (!client.isAuthenticated())
     {
         printf("Not authenticated with server\n");
-        goto error;
+        sock_quit();
+        return -1;
     }
+
+    printf("Auth OK\n");
 
     sock_quit();
     return 0;
-
-error:
-    sock_quit();
-    return -1;
 }

@@ -3,10 +3,6 @@
 #include <cstring>
 #include <assert.h>
 
-//
-#include <iostream>
-//
-
 #define RCON_PACKET_MIN_SIZE (sizeof(int32_t) * 2 + sizeof(int8_t) * 2)
 #define RCON_PACKET_MAX_SEND_SIZE 1446
 #define RCON_PACKET_MAX_RECV_SIZE 4096
@@ -162,12 +158,10 @@ RCONPacket* RCONClient::_recvPacket()
     int32_t packetSize = 0;
     int res = recv(m_RCONServerSocket, (char*)&packetSize, sizeof(int32_t), 0);
 
-    if (res <= 0)
+    if (res < 0)
         return nullptr;
 
-    printf("%d\n", res);
     assert(res == sizeof(int32_t));
-
     uint8_t* pDataBuffer = (uint8_t*)calloc(packetSize, sizeof(uint8_t));
     res = recv(m_RCONServerSocket, (char*)pDataBuffer, packetSize, 0);
     if (res < 0)
@@ -272,57 +266,31 @@ ssize_t RCONClient::recvResponse(char** ppOutBuffer)
     if (!ppOutBuffer)
         return -1;
     
-    size_t outBufferOffset = 0;
     size_t outBufferSize = 0;
     *ppOutBuffer = nullptr;
-    do {
-        RCONPacket* pPacket = _recvPacket();
+    RCONPacket* pPacket = _recvPacket();
 
-        if (!pPacket)
-            return static_cast<ssize_t>(RCONErrorCode::ERROR_RECV_FAILED);
+    if (!pPacket)
+        return static_cast<ssize_t>(RCONErrorCode::ERROR_RECV_FAILED);
 
-        if (pPacket->m_packetType != static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE))
-        {
-            delete pPacket;
-            return static_cast<ssize_t>(RCONErrorCode::ERROR_PACKET_INVALID);
-        }
-
-        size_t dataSegmentSize = pPacket->getDataSegmentSize();
-        outBufferSize += dataSegmentSize;
-
-        if (*ppOutBuffer == nullptr)
-        {
-            *ppOutBuffer = (char*)calloc(outBufferSize, sizeof(char));
-
-            if (!*ppOutBuffer)
-            {
-                delete pPacket;
-                return -1;
-            }
-        }
-        else
-        {
-            char* temp = (char*)realloc(ppOutBuffer, outBufferSize * sizeof(char));
-
-            if (!temp)
-            {
-                free(*ppOutBuffer);
-                delete pPacket;
-                return -1;
-            }
-
-            *ppOutBuffer = temp;
-        }
-
-
-        memcpy((*ppOutBuffer) + outBufferOffset, pPacket->m_pPacketData, dataSegmentSize);
-        outBufferOffset += dataSegmentSize;
-
-        m_lastReceivedPacketID = pPacket->m_packetID;
-        printf("%d %d %zu\n", m_lastSentPacketID, m_lastReceivedPacketID, outBufferSize);
-
+    if (pPacket->m_packetType != static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE))
+    {
         delete pPacket;
-    } while(m_lastReceivedPacketID != m_lastSentPacketID);
+        return static_cast<ssize_t>(RCONErrorCode::ERROR_PACKET_INVALID);
+    }
 
+    outBufferSize = pPacket->getDataSegmentSize();
+    *ppOutBuffer = (char*)calloc(outBufferSize, sizeof(char));
+
+    if (!*ppOutBuffer)
+    {
+        delete pPacket;
+        return -1;
+    }
+
+
+    memcpy((*ppOutBuffer), pPacket->m_pPacketData, outBufferSize);
+    m_lastReceivedPacketID = pPacket->m_packetID;
+    delete pPacket;
     return outBufferSize;
 }
