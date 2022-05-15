@@ -95,7 +95,7 @@ RCONPacket* RCONPacket::DeserializeRCONPacket(uint8_t* pBuffer, size_t bufferSiz
     return new RCONPacket(*packetID, static_cast<RCONPacketType>(*packetType), pDataSegment, dataSegmentSize);
 }
 
-RCONClient::RCONClient(const char* serverIP, const char* port, sa_family_t inFamily) :
+RCONClient::RCONClient(const char* serverIP, const char* port, int inFamily) :
     m_lastSentPacketID(0), m_lastReceivedPacketID(0), m_bAuthenticated(false), m_bSocketConnected(false)
 {    
     addrinfo hints;
@@ -148,7 +148,7 @@ ssize_t RCONClient::_sendPacket(RCONPacket* pPacket)
     uint8_t *pOutBuffer = nullptr;
     ssize_t bufferSize = RCONPacket::SerializeRCONPacket(pPacket, &pOutBuffer);
 
-    ssize_t bytesSent = send(m_RCONServerSocket, pOutBuffer, bufferSize, 0);
+    ssize_t bytesSent = send(m_RCONServerSocket, (char*)pOutBuffer, bufferSize, 0);
     free(pOutBuffer);
 
     if (bytesSent < 0)
@@ -160,7 +160,7 @@ ssize_t RCONClient::_sendPacket(RCONPacket* pPacket)
 RCONPacket* RCONClient::_recvPacket()
 {
     int32_t packetSize = 0;
-    int res = recv(m_RCONServerSocket, &packetSize, sizeof(int32_t), 0);
+    int res = recv(m_RCONServerSocket, (char*)&packetSize, sizeof(int32_t), 0);
 
     if (res <= 0)
         return nullptr;
@@ -169,7 +169,7 @@ RCONPacket* RCONClient::_recvPacket()
     assert(res == sizeof(int32_t));
 
     uint8_t* pDataBuffer = (uint8_t*)calloc(packetSize, sizeof(uint8_t));
-    res = recv(m_RCONServerSocket, pDataBuffer, packetSize, 0);
+    res = recv(m_RCONServerSocket, (char*)pDataBuffer, packetSize, 0);
     if (res < 0)
     {
         free(pDataBuffer);

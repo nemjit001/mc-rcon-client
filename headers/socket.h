@@ -5,7 +5,6 @@
         #define _WIN32_WINNT 0x0A00
     #endif
     // WINDOWS INCLUDES
-    #pragma comment(lib,"Ws2_32.lib")
     #include <WinSock2.h> 
     #include <WS2tcpip.h>
 #else

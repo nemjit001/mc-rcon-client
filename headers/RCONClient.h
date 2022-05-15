@@ -55,7 +55,7 @@ private:
 
 public:
     RCONClient() = delete;
-    RCONClient(const char* serverIP, const char* port, sa_family_t inFamily);
+    RCONClient(const char* serverIP, const char* port, int inFamily);
     ~RCONClient();
 
     bool isConnected();
