@@ -11,18 +11,21 @@ int Logger::Log(LogLevel logLevel, const char* format, ...)
 
     switch (logLevel)
     {
-    case LogLevel::DEBUG:
+    case LogLevel::LEVEL_DEBUG:
         #ifdef NDEBUG
             return 0;
         #else
             headerRes = printf("[DEBUG] ");
             break;
         #endif
-    case LogLevel::WARNING:
+    case LogLevel::LEVEL_INFO:
+        headerRes = printf("[INFO] ");
+        break;
+    case LogLevel::LEVEL_WARNING:
         headerRes = printf("[WARNING] ");
         break;
-    case LogLevel::INFO:
-        headerRes = printf("[INFO] ");
+    case LogLevel::LEVEL_ERROR:
+        headerRes = printf("[ERROR] ");
         break;
     default:
         break;
@@ -43,7 +46,7 @@ int Logger::LogWithPrefix(const char* prefix, const char* format, ...)
     int prefixRes = 0;
     va_start(argv, format);
 
-    prefixRes = printf("%s", prefix);
+    prefixRes = printf("%s ", prefix);
     if (prefixRes < 0)
         return prefixRes;
 
