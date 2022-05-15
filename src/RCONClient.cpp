@@ -32,8 +32,7 @@ bool RCONPacket::isValid()
                 m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE) || \
                 m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_EXECCOMMAND)    || \
                 m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH_RESPONSE)  || \
-                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH)           || \
-                m_packetType == static_cast<int32_t>(RCONPacketType::RCON_FRAGMENT_PROBE)
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH)
             );
 }
 
@@ -293,4 +292,12 @@ ssize_t RCONClient::recvResponse(char** ppOutBuffer)
     m_lastReceivedPacketID = pPacket->m_packetID;
     delete pPacket;
     return outBufferSize;
+}
+
+void RCONClient::FreeOutBuffer(char* pOutBuffer, ssize_t outBufferSize)
+{
+    if (outBufferSize < 0)
+        return;
+
+    free(pOutBuffer);
 }

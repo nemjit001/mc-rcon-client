@@ -4,14 +4,14 @@
 #include <cstdint>
 
 #include "socket.h"
+#include "Logger.h"
 
 enum class RCONPacketType
 {
     SERVERDATA_RESPONSE_VALUE   = 0,
     SERVERDATA_EXECCOMMAND      = 2,
     SERVERDATA_AUTH_RESPONSE    = 2,
-    SERVERDATA_AUTH             = 3,
-    RCON_FRAGMENT_PROBE         = 0x42
+    SERVERDATA_AUTH             = 3
 };
 
 enum class RCONErrorCode
@@ -63,4 +63,6 @@ public:
     bool authenticate(const char* serverPassword, size_t passwordLength);
     int sendCommand(const char* commandBuff, size_t commandBuffLength);
     ssize_t recvResponse(char** ppOutBuffer);
+
+    static void FreeOutBuffer(char* pOutBuffer, ssize_t outBufferSize);
 };

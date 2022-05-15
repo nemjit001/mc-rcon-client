@@ -14,7 +14,9 @@ enable_testing()
 add_executable(
     ${TARGET_NAME}
     src/socket.cpp
+    src/Logger.cpp
     src/RCONClient.cpp
+    src/ConsoleClient.cpp
     src/main.cpp
 )
 
