@@ -2,6 +2,7 @@
 
 struct ArgInfo
 {
+    bool m_bUnknownArgFound : 1;
     bool m_bDisplayHelp     : 1;
     bool m_bServerNameSet   : 1;
     bool m_bServerPortSet   : 1;
