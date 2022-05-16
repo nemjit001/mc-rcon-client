@@ -14,8 +14,11 @@ struct ArgInfo
 
 class ArgParser
 {
+private:
+    static bool _setParam(char*& param, int argc, char** argv, int paramIdx);
+    static bool _isArgValidInput(char* arg);
+
 public:
-    static void PrintHelp();
+    static void DisplayHelp();
     static ArgInfo ParseArgv(int argc, char** argv);
-    static void FreeArgInfo(ArgInfo argInfo);
 };
