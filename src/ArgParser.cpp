@@ -5,6 +5,11 @@
 #include <cstring>
 #include <cstdlib>
 
+void ArgParser::PrintHelp()
+{
+    //
+}
+
 ArgInfo ArgParser::ParseArgv(int argc, char** argv)
 {
     ArgInfo argInfo;
@@ -12,11 +17,9 @@ ArgInfo ArgParser::ParseArgv(int argc, char** argv)
 
     if (argc > 1)
     {
-        Logger::Log(LogLevel::LEVEL_DEBUG, "Detected %d cli args:\n", argc);
+        Logger::Log(LogLevel::LEVEL_DEBUG, "Parsing %d cli args:\n", argc);
         for (int i = 0; i < argc; i++)
-        {
             Logger::Log(LogLevel::LEVEL_DEBUG, "\t%s\n", argv[i]);
-        }
     }
 
     // TODO: start parsing

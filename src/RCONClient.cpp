@@ -1,9 +1,10 @@
 #include "RCONClient.h"
 
+#include "Logger.h"
+
 #ifndef _WIN32
     #include <poll.h>
 #endif
-
 #include <cstring>
 #include <assert.h>
 

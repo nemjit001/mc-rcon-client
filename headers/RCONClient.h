@@ -4,7 +4,6 @@
 #include <cstdint>
 
 #include "socket.h"
-#include "Logger.h"
 
 enum class RCONPacketType
 {

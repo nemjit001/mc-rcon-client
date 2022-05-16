@@ -1,5 +1,7 @@
 #include "ConsoleClient.h"
 
+#include "Logger.h"
+
 #include <iostream>
 #include <cstring>
 #include <regex>
@@ -29,7 +31,7 @@ ConsoleClient::ConsoleClient(const char* serverName, const char* serverPort, con
     }
 
     Logger::Log(LogLevel::LEVEL_INFO, "Connected to %s:%s\n", serverName, serverPort);
-    Logger::Log(LogLevel::LEVEL_INFO, "Client startup OK. To exit the program type: \"quit\" or \"exit\"\n");
+    Logger::Log(LogLevel::LEVEL_INFO, "Client startup OK. To exit the program type \"quit\" or \"exit\"\n");
 
     m_inputThread = std::thread(&ConsoleClient::_inputThread, this);
     m_outputThread = std::thread(&ConsoleClient::_outputThread, this);
