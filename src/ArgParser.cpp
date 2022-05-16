@@ -90,6 +90,7 @@ ArgInfo ArgParser::ParseArgv(int argc, char** argv)
             {
                 Logger::Log(LogLevel::LEVEL_DEBUG, "\tSet \"%s\" as server name\n", argInfo.m_pServerName);
                 argInfo.m_bServerNameSet = true;
+                i += 1;
             }
             else
             {
@@ -105,6 +106,7 @@ ArgInfo ArgParser::ParseArgv(int argc, char** argv)
             {
                 Logger::Log(LogLevel::LEVEL_DEBUG, "\tSet \"%s\" as server port\n", argInfo.m_pServerPort);
                 argInfo.m_bServerPortSet = true;
+                i += 1;
 
                 if (!std::regex_match(argInfo.m_pServerPort, serverPortValidationRegex))
                 {
@@ -126,6 +128,7 @@ ArgInfo ArgParser::ParseArgv(int argc, char** argv)
             {
                 Logger::Log(LogLevel::LEVEL_DEBUG, "\tSet \"%s\" as server password\n", argInfo.m_pServerPass);
                 argInfo.m_bServerPassSet = true;
+                i += 1;
             }
             else
             {
@@ -136,6 +139,11 @@ ArgInfo ArgParser::ParseArgv(int argc, char** argv)
         else if (std::regex_match(argv[i], helpParamRegex))
         {
             argInfo.m_bDisplayHelp = true;
+            break;
+        }
+        else
+        {
+            argInfo.m_bUnknownArgFound = true;
             break;
         }
     }

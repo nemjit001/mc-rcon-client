@@ -52,6 +52,14 @@ int main(int argc, char** argv)
 
     ArgInfo argInfo = ArgParser::ParseArgv(argc, argv);
 
+    if (argInfo.m_bUnknownArgFound)
+    {
+        Logger::Log(LogLevel::LEVEL_ERROR, "Unknown argument passed to client. See the Help page for valid CLI arguments:\n");
+        ArgParser::DisplayHelp();
+        sock_quit();
+        return -1;
+    }
+
     if (argInfo.m_bDisplayHelp)
     {
         ArgParser::DisplayHelp();
