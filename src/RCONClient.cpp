@@ -5,6 +5,7 @@
 #ifndef _WIN32
     #include <poll.h>
 #endif
+
 #include <cstring>
 #include <assert.h>
 
@@ -246,15 +247,22 @@ bool RCONClient::serverHasData()
 {
 #ifdef _WIN32
     fd_set readFds;
+
     FD_ZERO(&readFds);
     FD_SET(m_RCONServerSocket, &readFds);
 
-    if (select(m_RCONServerSocket + 1, &readFds, nullptr, nullptr, 0) != 0)
+    TIMEVAL timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+    int result = select(m_RCONServerSocket + 1, &readFds, nullptr, nullptr, &timeout);
+
+    if (result < 0)
     {
-        Logger::Log(LogLevel::LEVEL_DEBUG, "Select on server sock failed\n");
+        Logger::Log(LogLevel::LEVEL_DEBUG, "Error in select function: %d\n", result);
         return false;
     }
-    
+
     return (FD_ISSET(m_RCONServerSocket, &readFds)) ? true : false;
 #else
     pollfd pollingfd;
