@@ -1,5 +1,9 @@
 #include "RCONClient.h"
 
+#ifndef _WIN32
+    #include <poll.h>
+#endif
+
 #include <cstring>
 #include <assert.h>
 
@@ -157,10 +161,10 @@ RCONPacket* RCONClient::_recvPacket()
     int32_t packetSize = 0;
     int res = recv(m_RCONServerSocket, (char*)&packetSize, sizeof(int32_t), 0);
 
-    if (res < 0)
+    if (res <= 0)
         return nullptr;
 
-    assert(res == sizeof(int32_t));
+    Logger::Log(LogLevel::LEVEL_DEBUG, "server bytes recvd: %d\n", res);
     uint8_t* pDataBuffer = (uint8_t*)calloc(packetSize, sizeof(uint8_t));
     res = recv(m_RCONServerSocket, (char*)pDataBuffer, packetSize, 0);
     if (res < 0)
@@ -237,6 +241,33 @@ bool RCONClient::authenticate(const char* serverPassword, size_t passwordLength)
     return true;
 }
 
+bool RCONClient::serverHasData()
+{
+#ifdef _WIN32
+    fd_set readFds;
+    FD_ZERO(&readFds);
+    FD_SET(m_RCONServerSocket, &readFds);
+
+    if (select(m_RCONServerSocket + 1, &readFds, nullptr, nullptr, 0) != 0)
+    {
+        Logger::Log(LogLevel::LEVEL_DEBUG, "Select on server sock failed\n");
+        return false;
+    }
+    
+    return (FD_ISSET(m_RCONServerSocket, &readFds)) ? true : false;
+#else
+    pollfd pollingfd;
+    pollingfd.events = POLLIN;
+    pollingfd.fd = m_RCONServerSocket;
+    pollingfd.revents = 0;
+
+    if (poll(&pollingfd, 1, 0) < 0) 
+        return false;
+    
+    return pollingfd.revents & POLLIN;
+#endif
+}
+
 int RCONClient::sendCommand(const char* commandBuff, size_t commandBuffLength)
 {
     if (!m_bSocketConnected || !m_bAuthenticated)
@@ -279,7 +310,7 @@ ssize_t RCONClient::recvResponse(char** ppOutBuffer)
     }
 
     outBufferSize = pPacket->getDataSegmentSize();
-    *ppOutBuffer = (char*)calloc(outBufferSize, sizeof(char));
+    *ppOutBuffer = (char*)calloc(outBufferSize + 1, sizeof(char));
 
     if (!*ppOutBuffer)
     {
@@ -289,9 +320,10 @@ ssize_t RCONClient::recvResponse(char** ppOutBuffer)
 
 
     memcpy((*ppOutBuffer), pPacket->m_pPacketData, outBufferSize);
+    (*ppOutBuffer)[outBufferSize] = '\0';
     m_lastReceivedPacketID = pPacket->m_packetID;
     delete pPacket;
-    return outBufferSize;
+    return outBufferSize + 1;
 }
 
 void RCONClient::FreeOutBuffer(char* pOutBuffer, ssize_t outBufferSize)

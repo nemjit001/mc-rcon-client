@@ -1,6 +1,11 @@
 #include "ConsoleClient.h"
 
 #include <iostream>
+#include <cstring>
+#include <regex>
+
+#define CLIENT_EXIT_COMMAND_REGEX "(\\/?exit|\\/?quit)"
+#define RCON_SHUTDOWN_TEXT "Stopping the server"
 
 ConsoleClient::ConsoleClient(const char* serverName, const char* serverPort, const char* serverPassword) :
     m_bRunning(true), m_pRCONClient(0), m_inputThread(), m_outputThread()
@@ -24,15 +29,19 @@ ConsoleClient::ConsoleClient(const char* serverName, const char* serverPort, con
     }
 
     Logger::Log(LogLevel::LEVEL_INFO, "Connected to %s:%s\n", serverName, serverPort);
+    Logger::Log(LogLevel::LEVEL_INFO, "Client startup OK. To exit the program type: \"quit\" or \"exit\"\n");
 
-    m_inputThread = std::thread(_inputThread, this);
-    m_outputThread = std::thread(_outputThread, this);
+    m_inputThread = std::thread(&ConsoleClient::_inputThread, this);
+    m_outputThread = std::thread(&ConsoleClient::_outputThread, this);
 }
 
 ConsoleClient::~ConsoleClient()
 {
-    m_inputThread.join();
-    m_outputThread.join();
+    if (m_inputThread.joinable())
+        m_inputThread.join();
+
+    if (m_outputThread.joinable())
+        m_outputThread.join();
 
     delete m_pRCONClient;
 }
@@ -41,7 +50,7 @@ void ConsoleClient::_inputThread()
 {
     Logger::Log(LogLevel::LEVEL_DEBUG, "Started _inputThread()\n");
 
-    
+    std::regex exitRegex(CLIENT_EXIT_COMMAND_REGEX, std::regex_constants::ECMAScript);
     char* pCommandBuffer = nullptr;
     while (this->isRunning())
     {
@@ -55,6 +64,15 @@ void ConsoleClient::_inputThread()
         pCommandBuffer = (char*)calloc(bufferSize, sizeof(char));
         memcpy(pCommandBuffer, command.c_str(), bufferSize - 1);
         pCommandBuffer[bufferSize - 1] = '\0';
+
+        if (std::regex_match(command, exitRegex))
+        {
+            Logger::Log(LogLevel::LEVEL_INFO, "Shutting down MC RCON Client...\n");
+            this->m_bRunning = false;
+            free(pCommandBuffer);
+            pCommandBuffer = nullptr;
+            continue;
+        }
         
         if (m_pRCONClient->sendCommand(pCommandBuffer, bufferSize) < 0)
         {
@@ -79,6 +97,11 @@ void ConsoleClient::_outputThread()
 
     while(this->isRunning())
     {
+        if (!m_pRCONClient->serverHasData())
+            continue;
+
+        Logger::Log(LogLevel::LEVEL_DEBUG, "server has data available\n");
+
         ssize_t response = m_pRCONClient->recvResponse(&pOutBuffer);
         Logger::Log(LogLevel::LEVEL_DEBUG, "response size: %d\n", response);
 
@@ -89,6 +112,15 @@ void ConsoleClient::_outputThread()
 
             Logger::Log(LogLevel::LEVEL_ERROR, "Failed to receive response from server!\n");
             this->m_bRunning = false;
+            continue;
+        }
+
+        if (strcmp(pOutBuffer, RCON_SHUTDOWN_TEXT) == 0)
+        {
+            RCONClient::FreeOutBuffer(pOutBuffer, response);
+            this->m_bRunning = false;
+
+            Logger::Log(LogLevel::LEVEL_INFO, "Server has disconnected, please exit the program\n");
             continue;
         }
 

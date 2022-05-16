@@ -61,6 +61,7 @@ public:
     bool isConnected();
     bool isAuthenticated();
     bool authenticate(const char* serverPassword, size_t passwordLength);
+    bool serverHasData();
     int sendCommand(const char* commandBuff, size_t commandBuffLength);
     ssize_t recvResponse(char** ppOutBuffer);
 
