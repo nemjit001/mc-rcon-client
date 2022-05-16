@@ -1,83 +1,75 @@
 #include <iostream>
+#include <cstring>
 
-#include "RCONClient.h"
+#include "ArgParser.h"
+#include "Logger.h"
+#include "ConsoleClient.h"
 
-#define SETUP_RETRIES 3
-
-struct connection_params
+char* getUserInput()
 {
-    std::string hostname;
-    std::string port;
-    std::string password;
-};
+    std::string input;
+    std::getline(std::cin, input);
 
-void connection_setup(struct connection_params &params)
-{
-    std::string host, port, password;
+    char* pInput = (char*)calloc(input.length() + 1, sizeof(char));
+    memcpy(pInput, input.c_str(), input.length());
+    pInput[input.length()] = '\0';
 
-    UI::print_setup(SETUP_HOSTNAME);
-    getline(std::cin, host);
-
-    UI::print_setup(SETUP_PORT);
-    getline(std::cin, port);
-
-    UI::print_setup(SETUP_PASSWORD);
-    std::getline(std::cin, password);
-
-    if (host == "")
-        host = "127.0.0.1";
-        
-    if (port == "")
-        port = "25575";
-
-    params.hostname = host;
-    params.port = port;
-    params.password = password;
-
-    UI::print_info(INFO_CONNECTION_SETUP);
+    return pInput;
 }
 
-int main(int argc, char **argv)
-{
-    bool successful_setup = false;
-    RCONClient *client = new RCONClient();
-    UI::print_info(INFO_START);
+void askForMissingArgs(ArgInfo& argInfo)
+{   
+    if (argInfo.m_bDisplayHelp)
+        return;
+
+    Logger::Log(LogLevel::LEVEL_INFO, "Follow the prompts to connect to your Minecraft server\n");
     
-    for (int i = 0; i < SETUP_RETRIES; i++)
+    if (!argInfo.m_bServerNameSet)
     {
-        struct connection_params params;
-        connection_setup(params);
-
-        if (client->init(params.hostname, params.port, params.password) == 0)
-        {
-            successful_setup = true;
-
-            break;
-        }
+        Logger::Log(LogLevel::LEVEL_INFO, "What is your server's hostname? : ");
+        argInfo.m_pServerName = getUserInput();
+        argInfo.m_bServerNameSet = true;
     }
 
-    if (!successful_setup)
+    if (!argInfo.m_bServerPortSet)
     {
-        delete client;
-        
-        UI::print_error(ERROR_INIT_FAILED);
-
-        return 1;
+        Logger::Log(LogLevel::LEVEL_INFO, "On what port is RCON running? : ");
+        argInfo.m_pServerPort = getUserInput();
+        argInfo.m_bServerPortSet = true;
     }
 
-    // after successful init we can start the client
-    client->start();
-
-    while(!client->is_stopped() && client->step() == 0)
+    if (!argInfo.m_bServerPassSet)
     {
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(10)
-        );
+        Logger::Log(LogLevel::LEVEL_INFO, "What is your RCON password? : ");
+        argInfo.m_pServerPass = getUserInput();
+        argInfo.m_bServerPassSet = true;
+    }
+}
+
+int main(int argc, char** argv)
+{
+    sock_init();
+
+    ArgInfo argInfo = ArgParser::ParseArgv(argc, argv);
+
+    if (argInfo.m_bDisplayHelp)
+    {
+        ArgParser::DisplayHelp();
+        sock_quit();
+        return 0;
     }
 
-    delete client;
+    if (!argInfo.m_bDisplayHelp && !(argInfo.m_bServerNameSet && argInfo.m_bServerPortSet && argInfo.m_bServerPassSet))
+        askForMissingArgs(argInfo);
 
-    UI::print_info(INFO_EXIT_OK);
+    ConsoleClient client(argInfo.m_pServerName, argInfo.m_pServerPort, argInfo.m_pServerPass);
+    ArgParser::FreeArgInfo(argInfo);
 
+    while(client.isRunning())
+    {
+        // busy wait until client is stopped
+    }
+
+    sock_quit();
     return 0;
 }

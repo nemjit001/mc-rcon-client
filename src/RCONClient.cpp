@@ -1,210 +1,336 @@
 #include "RCONClient.h"
 
-RCONClient::RCONClient()
+#include "Logger.h"
+
+#ifndef _WIN32
+    #include <poll.h>
+#endif
+#include <cstring>
+#include <assert.h>
+
+#define RCON_PACKET_MIN_SIZE (sizeof(int32_t) * 2 + sizeof(int8_t) * 2)
+#define RCON_PACKET_MAX_SEND_SIZE 1446
+#define RCON_PACKET_MAX_RECV_SIZE 4096
+
+RCONPacket::RCONPacket(int32_t packetID, RCONPacketType packetType, uint8_t* pPacketData, size_t dataSize) :
+    m_packetSize(0), m_packetID(packetID), m_packetType(static_cast<int32_t>(packetType)), m_pPacketData(nullptr), m_zero(0)
 {
-    this->_server_addr = "";
-    this->_server_port = "";
-    this->_server_key = "";
-    this->_stopped = false;
-    this->_send_buffer = new CircularLineBuffer();
-    this->_rcon_socket = INVALID_SOCKET;
-    this->_start_req_id = 1;
+    if (!pPacketData)
+        return;
+
+    m_packetSize = RCON_PACKET_MIN_SIZE + dataSize;
+    m_pPacketData = (uint8_t*)calloc(dataSize, sizeof(uint8_t));
+
+    memcpy(m_pPacketData, pPacketData, dataSize);
 }
 
-RCONClient::~RCONClient()
+RCONPacket::~RCONPacket()
 {
-    this->_close();
-    this->_stop_threads();
-    
-    sock_quit();
-
-    delete this->_send_buffer;
+    if (m_pPacketData)
+        free(m_pPacketData);
 }
 
-int RCONClient::_connect()
+bool RCONPacket::isValid()
 {
+    return  (m_packetSize >= static_cast<int32_t>(RCON_PACKET_MIN_SIZE)) &&
+            (
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE) ||
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_EXECCOMMAND)    ||
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH_RESPONSE)  ||
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH)
+            );
+}
+
+size_t RCONPacket::getDataSegmentSize()
+{
+    return m_packetSize - RCON_PACKET_MIN_SIZE;
+}
+
+ssize_t RCONPacket::SerializeRCONPacket(RCONPacket* pRCONPacket, uint8_t** ppOutBuffer)
+{
+    assert(pRCONPacket);
+    assert(ppOutBuffer);
+
+    if (!pRCONPacket || !ppOutBuffer)
+        return -1;
+
+    int32_t totalPacketSize = pRCONPacket->m_packetSize + sizeof(int32_t);
+    int32_t dataSegmentSize = pRCONPacket->getDataSegmentSize();
+
+    *ppOutBuffer = (uint8_t*)calloc(totalPacketSize, sizeof(uint8_t));
+
+    size_t offset = 0;
+    memcpy((*ppOutBuffer) + offset, &(pRCONPacket->m_packetSize), sizeof(int32_t));
+    offset += sizeof(int32_t);
+    memcpy((*ppOutBuffer) + offset, &(pRCONPacket->m_packetID), sizeof(int32_t));
+    offset += sizeof(int32_t);
+    memcpy((*ppOutBuffer) + offset, &(pRCONPacket->m_packetType), sizeof(int32_t));
+    offset += sizeof(int32_t);
+    memcpy((*ppOutBuffer) + offset, pRCONPacket->m_pPacketData, dataSegmentSize);
+    offset += dataSegmentSize;
+
+    assert((offset + 1) == (totalPacketSize - sizeof(int8_t)));
+
+    return totalPacketSize;
+}
+
+RCONPacket* RCONPacket::DeserializeRCONPacket(uint8_t* pBuffer, size_t bufferSize)
+{
+    assert(bufferSize >= RCON_PACKET_MIN_SIZE + sizeof(int32_t));
+
+    if (bufferSize < RCON_PACKET_MIN_SIZE + sizeof(int32_t))
+        return nullptr;
+
+    size_t offset = 0;
+    int32_t* packetSize = reinterpret_cast<int32_t*>(pBuffer + offset);
+    offset += sizeof(int32_t);
+    int32_t* packetID = reinterpret_cast<int32_t*>(pBuffer + offset);
+    offset += sizeof(int32_t);
+    int32_t* packetType = reinterpret_cast<int32_t*>(pBuffer + offset);
+    offset += sizeof(int32_t);
+    uint8_t* pDataSegment = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(pBuffer) + offset);
+
+    size_t dataSegmentSize = (*packetSize) - RCON_PACKET_MIN_SIZE;
+
+    return new RCONPacket(*packetID, static_cast<RCONPacketType>(*packetType), pDataSegment, dataSegmentSize);
+}
+
+RCONClient::RCONClient(const char* serverIP, const char* port, int inFamily) :
+    m_lastSentPacketID(0), m_lastReceivedPacketID(0), m_bAuthenticated(false), m_bSocketConnected(false)
+{    
     addrinfo hints;
-    addrinfo *results;
+    addrinfo* results = nullptr;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_INET;
+    hints.ai_family = inFamily;
 
-    if (getaddrinfo(this->_server_addr.c_str(), this->_server_port.c_str(), &hints, &results) != 0)
-        return RCON_ADDR_INFO_INVALID;
+    if (getaddrinfo(serverIP, port, &hints, &results) != 0)
+        return;
 
-    this->_rcon_socket = socket(results->ai_family, results->ai_socktype, results->ai_protocol);
+    m_RCONServerSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-    if (!sock_valid(this->_rcon_socket))
-        return RCON_SOCK_INVALID;
+    if (!sock_valid(m_RCONServerSocket))
+    {
+        freeaddrinfo(results);
+        return;
+    }
+    
+    if (connect(m_RCONServerSocket, results->ai_addr, results->ai_addrlen) < 0)
+    {
+        freeaddrinfo(results);
+        return;
+    }
 
-    if (connect(this->_rcon_socket, results->ai_addr, results->ai_addrlen) != 0)
-        return RCON_REFUSED_BY_HOST;
-
+    m_bSocketConnected = true;
     freeaddrinfo(results);
-
-    return RCON_CONNECT_OK;
 }
 
-int RCONClient::_authenticate()
+RCONClient::~RCONClient()
 {
-    /*
-     * Auth flow:
-     * send with password in body and RCON_LOGIN as type
-     * recv SERVER_DATA_RESPONSE value with empty body, id of -1 is failed, same id is completed
-     */
+    if (sock_valid(m_RCONServerSocket))
+        sock_close(m_RCONServerSocket);
+}
 
-    char *buffer = (char *)calloc(RCON_MAX_PACKET_SIZE, sizeof(char));
-    char *packed_packet;
+ssize_t RCONClient::_sendPacket(RCONPacket* pPacket)
+{
+    assert(pPacket);
+    if (!pPacket)
+        return static_cast<size_t>(RCONErrorCode::ERROR_PACKET_INVALID);
 
-    struct rcon *packet = this->_generate_rcon_packet(this->_server_key.c_str(), this->_server_key.length(), this->_start_req_id++, RCON_SERVERDATA_AUTH);
-    packed_packet = this->_pack_rcon_packet(packet);
+    if (pPacket->m_packetSize - RCON_PACKET_MIN_SIZE > RCON_PACKET_MAX_SEND_SIZE) 
+        return static_cast<size_t>(RCONErrorCode::ERROR_PACKET_TOO_LONG);
+
+    if (!pPacket->isValid())
+        return static_cast<size_t>(RCONErrorCode::ERROR_PACKET_INVALID);
+
+    uint8_t *pOutBuffer = nullptr;
+    ssize_t bufferSize = RCONPacket::SerializeRCONPacket(pPacket, &pOutBuffer);
+
+    ssize_t bytesSent = send(m_RCONServerSocket, (char*)pOutBuffer, bufferSize, 0);
+    free(pOutBuffer);
+
+    if (bytesSent < 0)
+        return static_cast<size_t>(RCONErrorCode::ERROR_SEND_FAILED);
+
+    return bytesSent;
+}
+
+RCONPacket* RCONClient::_recvPacket()
+{
+    int32_t packetSize = 0;
+    int res = recv(m_RCONServerSocket, (char*)&packetSize, sizeof(int32_t), 0);
+
+    if (res <= 0)
+        return nullptr;
+
+    Logger::Log(LogLevel::LEVEL_DEBUG, "server bytes recvd: %d\n", res);
+    uint8_t* pDataBuffer = (uint8_t*)calloc(packetSize, sizeof(uint8_t));
+    res = recv(m_RCONServerSocket, (char*)pDataBuffer, packetSize, 0);
+    if (res < 0)
+    {
+        free(pDataBuffer);
+        return nullptr;
+    }
+
+    uint8_t* pPacketBuffer = (uint8_t*)calloc(packetSize + sizeof(int32_t), sizeof(uint8_t));
+    memcpy(pPacketBuffer, &packetSize, sizeof(int32_t));
+    memcpy(pPacketBuffer + sizeof(int32_t), pDataBuffer, packetSize);
     
-    if (send(this->_rcon_socket, packed_packet, packet->len + 4, 0) < 0)
-        return 1;
+    RCONPacket* pPacket = RCONPacket::DeserializeRCONPacket(pPacketBuffer, packetSize + sizeof(int32_t));
 
-    if (recv(this->_rcon_socket, buffer, RCON_MAX_PACKET_SIZE, 0) <= 0)
-        return 2;
-
-    struct rcon *return_packet = this->_unpack_rcon_packet(buffer);
-
-    if (return_packet->req_id != packet->req_id)
-        return 3;
-
-    free(buffer);
-    free(packed_packet);
-    this->_free_packet(packet);
-    this->_free_packet(return_packet);
-
-    return 0;
+    free(pDataBuffer);
+    free(pPacketBuffer);
+    return pPacket;
 }
 
-int RCONClient::_close()
+bool RCONClient::isConnected()
 {
-    return sock_close(this->_rcon_socket);
+    return m_bSocketConnected;
 }
 
-int RCONClient::_send_command()
+bool RCONClient::isAuthenticated()
 {
-    std::string command;
+    return m_bAuthenticated;
+}
+
+bool RCONClient::authenticate(const char* serverPassword, size_t passwordLength)
+{
+    assert(serverPassword);
+
+    if (!serverPassword || (strlen(serverPassword) + 1) < passwordLength)
+        return false;
+
+    char* pPasswordNullTerm = NULL;
+    size_t passwordNullTermLength = passwordLength;
+
+    if (strlen(serverPassword) == passwordLength)
+        passwordNullTermLength += 1;
+
+    pPasswordNullTerm = (char*)calloc(passwordNullTermLength, sizeof(char));
+    memcpy(pPasswordNullTerm, serverPassword, strlen(serverPassword));
+
+    RCONPacket* pAuthPacket = new RCONPacket(m_lastSentPacketID, RCONPacketType::SERVERDATA_AUTH, (uint8_t*)pPasswordNullTerm, passwordNullTermLength);
+
+    free(pPasswordNullTerm);
+
+    if (_sendPacket(pAuthPacket) < 0)
+    {
+        delete(pAuthPacket);
+        return false;
+    }
+
+    delete pAuthPacket;
+    RCONPacket* pAuthResponse = _recvPacket();
+
+    if (pAuthResponse->m_packetType != static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH_RESPONSE))
+    {
+        delete pAuthResponse;
+        return false;
+    }
+
+    if (pAuthResponse->m_packetID == -1 || pAuthResponse->m_packetID != m_lastSentPacketID)
+    {
+        delete pAuthResponse;
+        return false;
+    }
     
-    getline(std::cin, command);
+    delete pAuthResponse;
 
-    if (command == "exit" || command == "quit")
-        return 1;
-    
-    command += '\n';
-    this->_send_buffer->write(command.c_str(), command.length());
-
-    return 0;
+    m_bAuthenticated = true;
+    return true;
 }
 
-int RCONClient::_recv_command()
+bool RCONClient::serverHasData()
 {
-    char buffer[RCON_MAX_PACKET_SIZE];
+#ifdef _WIN32
+    fd_set readFds;
+    FD_ZERO(&readFds);
+    FD_SET(m_RCONServerSocket, &readFds);
 
-    memset(&buffer, 0, sizeof(buffer));
+    if (select(m_RCONServerSocket + 1, &readFds, nullptr, nullptr, 0) != 0)
+    {
+        Logger::Log(LogLevel::LEVEL_DEBUG, "Select on server sock failed\n");
+        return false;
+    }
+    
+    return (FD_ISSET(m_RCONServerSocket, &readFds)) ? true : false;
+#else
+    pollfd pollingfd;
+    pollingfd.events = POLLIN;
+    pollingfd.fd = m_RCONServerSocket;
+    pollingfd.revents = 0;
 
-    if (recv(this->_rcon_socket, buffer, RCON_MAX_PACKET_SIZE, 0) <= 0)
+    if (poll(&pollingfd, 1, 0) < 0) 
+        return false;
+    
+    return pollingfd.revents & POLLIN;
+#endif
+}
+
+int RCONClient::sendCommand(const char* commandBuff, size_t commandBuffLength)
+{
+    if (!m_bSocketConnected || !m_bAuthenticated)
         return -1;
 
-    struct rcon *packet = this->_unpack_rcon_packet(buffer);
+    if (!commandBuff)
+        return -1;
+
+    m_lastSentPacketID++;
+    RCONPacket* pPacket = new RCONPacket(m_lastSentPacketID, RCONPacketType::SERVERDATA_EXECCOMMAND, (uint8_t*)commandBuff, commandBuffLength);
+    ssize_t sendResult = _sendPacket(pPacket);
+
+    delete pPacket;
+
+    if (sendResult < 0)
+        return sendResult;
+
+    return commandBuffLength;
+}
+
+ssize_t RCONClient::recvResponse(char** ppOutBuffer)
+{
+    if (!m_bSocketConnected || !m_bAuthenticated)
+        return -1;
     
-    UI::print_msg(packet->payload);
+    if (!ppOutBuffer)
+        return -1;
+    
+    size_t outBufferSize = 0;
+    *ppOutBuffer = nullptr;
+    RCONPacket* pPacket = _recvPacket();
 
-    this->_free_packet(packet);
+    if (!pPacket)
+        return static_cast<ssize_t>(RCONErrorCode::ERROR_RECV_FAILED);
 
-    return 0;
+    if (pPacket->m_packetType != static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE))
+    {
+        delete pPacket;
+        return static_cast<ssize_t>(RCONErrorCode::ERROR_PACKET_INVALID);
+    }
+
+    outBufferSize = pPacket->getDataSegmentSize();
+    *ppOutBuffer = (char*)calloc(outBufferSize + 1, sizeof(char));
+
+    if (!*ppOutBuffer)
+    {
+        delete pPacket;
+        return -1;
+    }
+
+
+    memcpy((*ppOutBuffer), pPacket->m_pPacketData, outBufferSize);
+    (*ppOutBuffer)[outBufferSize] = '\0';
+    m_lastReceivedPacketID = pPacket->m_packetID;
+    delete pPacket;
+    return outBufferSize + 1;
 }
 
-int RCONClient::init(std::string server_address, std::string server_port, std::string key)
+void RCONClient::FreeOutBuffer(char* pOutBuffer, ssize_t outBufferSize)
 {
-    this->_server_addr = server_address;
-    this->_server_port = server_port;
-    this->_server_key = key;
-    this->_stopped = false;
+    if (outBufferSize < 0)
+        return;
 
-    if (sock_init() != 0)
-    {
-        this->_stopped = true;
-        UI::print_error(ERROR_SOCK_INIT_FAILED);
-        return 1;
-    }
-
-    int res = this->_connect();
-    if (res == RCON_CONNECT_OK)
-    {
-        UI::print_info(INFO_CONNECT_OK);
-    }
-    else
-    {
-        this->_stopped = true;
-        switch(res)
-        {
-        case RCON_ADDR_INFO_INVALID:
-            UI::print_error(ERROR_INVALID_SERVER_ADDRESS);
-            break;
-        case RCON_SOCK_INVALID:
-            UI::print_error(ERROR_INVALID_SOCKET_RES);
-            break;
-        case RCON_REFUSED_BY_HOST:
-            UI::print_error(ERROR_CONNECT_FAILED);
-            break;
-        default:
-            break;
-        }
-
-        return 1;
-    }
-
-    res = this->_authenticate();
-    if (res == 0)
-    {
-        UI::print_info(INFO_LOGIN_OK);
-    }
-    else
-    {
-        this->_stopped = true;
-        switch(res)
-        {
-        case 1:
-            UI::print_error(ERROR_AUTH_SEND_FAILED);
-            break;
-        case 2:
-            UI::print_error(ERROR_AUTH_RECV_FAILED);
-            break;
-        case 3:
-            UI::print_error(ERROR_AUTH_FAILED);
-            break;
-        default:
-            break;
-        }
-
-        return 1;
-    }
-
-    return 0;
-}
-
-bool RCONClient::is_stopped()
-{
-    return this->_stopped;
-}
-
-int RCONClient::step()
-{
-    std::string command = this->_send_buffer->read();
-
-    if (command != "")
-    {
-        struct rcon *packet = this->_generate_rcon_packet(command.c_str(), command.length(), this->_start_req_id++, RCON_SERVERDATA_EXECCOMMAND);
-
-        if (send(this->_rcon_socket, this->_pack_rcon_packet(packet), packet->len + 4, 0) < 0)
-            return -1;
-
-        this->_free_packet(packet);
-    }
-
-    return 0;
+    free(pOutBuffer);
 }
