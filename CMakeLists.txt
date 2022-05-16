@@ -17,6 +17,7 @@ add_executable(
     src/Logger.cpp
     src/RCONClient.cpp
     src/ConsoleClient.cpp
+    src/ArgParser.cpp
     src/main.cpp
 )
 
