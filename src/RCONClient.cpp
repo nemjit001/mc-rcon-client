@@ -32,11 +32,11 @@ RCONPacket::~RCONPacket()
 
 bool RCONPacket::isValid()
 {
-    return  (m_packetSize >= static_cast<int32_t>(RCON_PACKET_MIN_SIZE)) && \
+    return  (m_packetSize >= static_cast<int32_t>(RCON_PACKET_MIN_SIZE)) &&
             (
-                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE) || \
-                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_EXECCOMMAND)    || \
-                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH_RESPONSE)  || \
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_RESPONSE_VALUE) ||
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_EXECCOMMAND)    ||
+                m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH_RESPONSE)  ||
                 m_packetType == static_cast<int32_t>(RCONPacketType::SERVERDATA_AUTH)
             );
 }
