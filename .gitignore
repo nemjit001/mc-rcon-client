@@ -35,6 +35,7 @@ CMakeFiles/
 CMakeCache.txt
 *.cmake
 *.tcl
+install_manifest.txt
 
 # General
 *.env
