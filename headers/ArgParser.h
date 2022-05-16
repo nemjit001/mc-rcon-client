@@ -21,4 +21,5 @@ private:
 public:
     static void DisplayHelp();
     static ArgInfo ParseArgv(int argc, char** argv);
+    static void FreeArgInfo(ArgInfo argInfo);
 };

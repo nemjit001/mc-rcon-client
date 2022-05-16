@@ -16,7 +16,13 @@
 bool ArgParser::_setParam(char*& param, int argc, char** argv, int paramIdx)
 {
     if (paramIdx < argc && ArgParser::_isArgValidInput(argv[paramIdx]))
-        param = argv[paramIdx];
+    {
+        size_t paramSize = strlen(argv[paramIdx]);
+
+        param = (char*)calloc(paramSize + 1, sizeof(char));
+        memcpy(param, argv[paramIdx], paramSize);
+        param[paramSize] = '\0';
+    }
     else
         return false;
 
@@ -135,4 +141,16 @@ ArgInfo ArgParser::ParseArgv(int argc, char** argv)
     }
 
     return argInfo;
+}
+
+void ArgParser::FreeArgInfo(ArgInfo argInfo)
+{
+    if (argInfo.m_bServerNameSet)
+        free(argInfo.m_pServerName);
+
+    if (argInfo.m_bServerPortSet)
+        free(argInfo.m_pServerPort);
+
+    if (argInfo.m_bServerPassSet)
+        free(argInfo.m_pServerPass);
 }
