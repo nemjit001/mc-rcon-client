@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(MC_RCON_Client VERSION 1.1.0 DESCRIPTION "RCON Client for Minecraft servers")
+project(MC_RCON_Client VERSION 2.0.1 DESCRIPTION "RCON Client for Minecraft servers")
 include(GNUInstallDirs)
 include(CTest)
 
@@ -10,6 +10,8 @@ set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 
 include(CTest)
 enable_testing()
+
+configure_file(Config.h.in "headers/Config.h")
 
 add_executable(
     ${TARGET_NAME}
