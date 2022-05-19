@@ -51,7 +51,7 @@ int main(int argc, char** argv)
 {
     sock_init();
 
-    Logger::Log(LogLevel::LEVEL_INFO, "Running %s version %s\n", PROJECT_NAME, PROJECT_VERSION);
+    Logger::Log(LogLevel::LEVEL_INFO, "Starting %s (%s)\n", PROJECT_NAME, PROJECT_VERSION);
 
     ArgInfo argInfo = ArgParser::ParseArgv(argc, argv);
 
