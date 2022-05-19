@@ -1,0 +1,21 @@
+name: "Build"
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  compile:
+    name: Compile
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@latest
+
+    - name: Get CMake
+      uses: lukka/get-cmake@latest
+
+  release:
+    #
