@@ -8,14 +8,16 @@ on:
 
 jobs:
   compile:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+
     name: Compile
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@latest
 
     - name: Get CMake
-      uses: lukka/get-cmake@latest
-
-  release:
-    #
+      uses: lukka/get-cmake@latest    
