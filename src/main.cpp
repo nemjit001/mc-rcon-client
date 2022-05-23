@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstring>
 
+#include "Config.h"
 #include "ArgParser.h"
 #include "Logger.h"
 #include "ConsoleClient.h"
@@ -49,6 +50,8 @@ void askForMissingArgs(ArgInfo& argInfo)
 int main(int argc, char** argv)
 {
     sock_init();
+
+    Logger::Log(LogLevel::LEVEL_INFO, "Starting %s (%s)\n", PROJECT_NAME, PROJECT_VERSION);
 
     ArgInfo argInfo = ArgParser::ParseArgv(argc, argv);
 

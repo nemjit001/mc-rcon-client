@@ -105,7 +105,7 @@ void ConsoleClient::_outputThread()
         Logger::Log(LogLevel::LEVEL_DEBUG, "server has data available\n");
 
         ssize_t response = m_pRCONClient->recvResponse(&pOutBuffer);
-        Logger::Log(LogLevel::LEVEL_DEBUG, "response size: %d\n", response);
+        Logger::Log(LogLevel::LEVEL_DEBUG, "response size: %ld\n", response);
 
         if (response < 0 || !pOutBuffer)
         {
