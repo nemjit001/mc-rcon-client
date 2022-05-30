@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(MC_RCON_Client VERSION 2.0.1 DESCRIPTION "RCON Client for Minecraft servers")
+project(MC_RCON_Client VERSION 2.0.2 DESCRIPTION "RCON Client for Minecraft servers")
 include(GNUInstallDirs)
 include(CTest)
 
@@ -31,7 +31,7 @@ else()
     target_link_libraries(${TARGET_NAME} Threads::Threads)
 endif()
 
-target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Werror -pedantic -g)
+target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Werror -pedantic -g -static-libstdc++)
 
 target_include_directories(${TARGET_NAME} PRIVATE src)
 target_include_directories(${TARGET_NAME} PRIVATE headers)
